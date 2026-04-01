@@ -14,13 +14,221 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      activities: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          difficulty: string
+          duration: string
+          icon: string
+          id: string
+          steps: Json
+          title: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string
+          difficulty?: string
+          duration?: string
+          icon?: string
+          id?: string
+          steps?: Json
+          title: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          difficulty?: string
+          duration?: string
+          icon?: string
+          id?: string
+          steps?: Json
+          title?: string
+        }
+        Relationships: []
+      }
+      children: {
+        Row: {
+          age: number
+          created_at: string
+          id: string
+          language: string
+          name: string
+          profile_id: string
+        }
+        Insert: {
+          age: number
+          created_at?: string
+          id?: string
+          language?: string
+          name: string
+          profile_id: string
+        }
+        Update: {
+          age?: number
+          created_at?: string
+          id?: string
+          language?: string
+          name?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "children_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_plans: {
+        Row: {
+          activity_id: string
+          child_id: string
+          completed: boolean
+          completed_at: string | null
+          created_at: string
+          id: string
+          plan_date: string
+        }
+        Insert: {
+          activity_id: string
+          child_id: string
+          completed?: boolean
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          plan_date?: string
+        }
+        Update: {
+          activity_id?: string
+          child_id?: string
+          completed?: boolean
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          plan_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_plans_activity_id_fkey"
+            columns: ["activity_id"]
+            isOneToOne: false
+            referencedRelation: "activities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_plans_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feedback: {
+        Row: {
+          created_at: string
+          daily_plan_id: string
+          id: string
+          notes: string | null
+          rating: string
+        }
+        Insert: {
+          created_at?: string
+          daily_plan_id: string
+          id?: string
+          notes?: string | null
+          rating: string
+        }
+        Update: {
+          created_at?: string
+          daily_plan_id?: string
+          id?: string
+          notes?: string | null
+          rating?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_daily_plan_id_fkey"
+            columns: ["daily_plan_id"]
+            isOneToOne: true
+            referencedRelation: "daily_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      progress_tracking: {
+        Row: {
+          average_rating: number
+          category: string
+          child_id: string
+          completed_count: number
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          average_rating?: number
+          category: string
+          child_id: string
+          completed_count?: number
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          average_rating?: number
+          category?: string
+          child_id?: string
+          completed_count?: number
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "progress_tracking_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_child_owner: { Args: { _child_id: string }; Returns: boolean }
+      is_plan_owner: { Args: { _plan_id: string }; Returns: boolean }
+      is_profile_owner: { Args: { _profile_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
