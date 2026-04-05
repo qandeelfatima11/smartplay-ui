@@ -21,8 +21,9 @@ const Home = () => {
     );
   }
 
-  const completedCount = activities?.filter((a) => a.completed).length ?? 0;
-  const todayActivity = activities?.[0];
+  const completedCount = progress?.completedActivities ?? 0;
+  // Show first non-completed activity as today's activity, or first one if all completed
+  const todayActivity = activities?.find((a) => !a.completed) ?? activities?.[0];
 
   return (
     <div className="min-h-screen bg-background pb-24 px-5 pt-10">
@@ -60,7 +61,7 @@ const Home = () => {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="mt-8">
           <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">More Activities</h2>
           <div className="space-y-3">
-            {activities.slice(1, 4).map((a) => (
+            {activities.filter((a) => a.id !== todayActivity?.id).slice(0, 4).map((a) => (
               <ActivityCard key={a.id} activity={a} />
             ))}
           </div>
