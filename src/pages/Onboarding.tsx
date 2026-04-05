@@ -2,13 +2,26 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, Sparkles } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useProfile } from "@/hooks/useProfile";
+import { toast } from "sonner";
 
 const Onboarding = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { data: profile } = useProfile();
   const [step, setStep] = useState(0);
   const [childName, setChildName] = useState("");
   const [childAge, setChildAge] = useState("");
   const [language, setLanguage] = useState("English");
+  const [saving, setSaving] = useState(false);
+
+  // If user already has a child, skip to home
+  if (profile?.childId) {
+    navigate("/home", { replace: true });
+    return null;
+  }
 
   const slides = [
     {
@@ -23,8 +36,33 @@ const Onboarding = () => {
     },
   ];
 
-  const handleGetStarted = () => {
-    navigate("/home");
+  const handleGetStarted = async () => {
+    if (!childName.trim() || !childAge || !user) return;
+    setSaving(true);
+    try {
+      // Get profile id
+      const { data: prof } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (!prof) throw new Error("Profile not found");
+
+      const { error } = await supabase.from("children").insert({
+        profile_id: prof.id,
+        name: childName.trim(),
+        age: parseInt(childAge),
+        language,
+      });
+
+      if (error) throw error;
+      navigate("/home");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to save. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -118,9 +156,10 @@ const Onboarding = () => {
 
             <button
               onClick={handleGetStarted}
-              className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-2xl text-lg transition-opacity hover:opacity-90 mt-6"
+              disabled={saving || !childName.trim() || !childAge}
+              className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-2xl text-lg transition-opacity hover:opacity-90 mt-6 disabled:opacity-50"
             >
-              Get Started 🚀
+              {saving ? "Saving..." : "Get Started 🚀"}
             </button>
           </motion.div>
         )}

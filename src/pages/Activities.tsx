@@ -1,14 +1,19 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import ActivityCard from "@/components/ActivityCard";
-import { activities } from "@/data/mockData";
+import { useActivities } from "@/hooks/useActivities";
+import { useProfile } from "@/hooks/useProfile";
 
 const categories = ["All", "Cognitive", "Math", "Language"];
 
 const Activities = () => {
   const [activeCategory, setActiveCategory] = useState("All");
+  const { data: profile } = useProfile();
+  const { data: activities, isLoading } = useActivities(profile?.childId ?? null);
 
-  const filtered = activeCategory === "All" ? activities : activities.filter((a) => a.category === activeCategory);
+  const filtered = activeCategory === "All" 
+    ? (activities ?? []) 
+    : (activities ?? []).filter((a) => a.category === activeCategory);
 
   return (
     <div className="min-h-screen bg-background pb-24 px-5 pt-10">
@@ -29,13 +34,17 @@ const Activities = () => {
         ))}
       </div>
 
-      <motion.div layout className="space-y-3">
-        {filtered.map((a, i) => (
-          <motion.div key={a.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-            <ActivityCard activity={a} />
-          </motion.div>
-        ))}
-      </motion.div>
+      {isLoading ? (
+        <p className="text-muted-foreground text-center mt-10">Loading activities...</p>
+      ) : (
+        <motion.div layout className="space-y-3">
+          {filtered.map((a, i) => (
+            <motion.div key={a.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
+              <ActivityCard activity={a} />
+            </motion.div>
+          ))}
+        </motion.div>
+      )}
     </div>
   );
 };

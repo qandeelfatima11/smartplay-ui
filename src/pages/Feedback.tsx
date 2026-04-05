@@ -1,6 +1,10 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { supabase } from "@/integrations/supabase/client";
+import { useProfile } from "@/hooks/useProfile";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 const options = [
   { label: "Yes", emoji: "👍", value: "yes" },
@@ -9,9 +13,111 @@ const options = [
 ];
 
 const Feedback = () => {
+  const { id: activityId } = useParams();
   const navigate = useNavigate();
+  const { data: profile } = useProfile();
+  const queryClient = useQueryClient();
   const [selected, setSelected] = useState<string | null>(null);
   const [note, setNote] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!selected || !activityId || !profile?.childId) return;
+    setSubmitting(true);
+
+    try {
+      // Create or get daily plan for today
+      const today = new Date().toISOString().split("T")[0];
+
+      // Check if plan already exists
+      const { data: existingPlan } = await supabase
+        .from("daily_plans")
+        .select("id")
+        .eq("child_id", profile.childId)
+        .eq("activity_id", activityId)
+        .eq("plan_date", today)
+        .single();
+
+      let planId: string;
+
+      if (existingPlan) {
+        planId = existingPlan.id;
+        await supabase
+          .from("daily_plans")
+          .update({ completed: true, completed_at: new Date().toISOString() })
+          .eq("id", planId);
+      } else {
+        const { data: newPlan, error: planError } = await supabase
+          .from("daily_plans")
+          .insert({
+            child_id: profile.childId,
+            activity_id: activityId,
+            plan_date: today,
+            completed: true,
+            completed_at: new Date().toISOString(),
+          })
+          .select("id")
+          .single();
+
+        if (planError) throw planError;
+        planId = newPlan.id;
+      }
+
+      // Insert feedback
+      const { error: fbError } = await supabase.from("feedback").insert({
+        daily_plan_id: planId,
+        rating: selected,
+        notes: note || null,
+      });
+
+      if (fbError) throw fbError;
+
+      // Update progress tracking
+      const { data: activity } = await supabase
+        .from("activities")
+        .select("category")
+        .eq("id", activityId)
+        .single();
+
+      if (activity) {
+        const { data: existing } = await supabase
+          .from("progress_tracking")
+          .select("*")
+          .eq("child_id", profile.childId)
+          .eq("category", activity.category)
+          .single();
+
+        if (existing) {
+          const newCount = existing.completed_count + 1;
+          const ratingVal = selected === "yes" ? 5 : selected === "somewhat" ? 3 : 1;
+          const newAvg = ((existing.average_rating * existing.completed_count) + ratingVal) / newCount;
+          await supabase
+            .from("progress_tracking")
+            .update({ completed_count: newCount, average_rating: newAvg })
+            .eq("id", existing.id);
+        } else {
+          const ratingVal = selected === "yes" ? 5 : selected === "somewhat" ? 3 : 1;
+          await supabase.from("progress_tracking").insert({
+            child_id: profile.childId,
+            category: activity.category,
+            completed_count: 1,
+            average_rating: ratingVal,
+          });
+        }
+      }
+
+      // Invalidate queries
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
+      queryClient.invalidateQueries({ queryKey: ["progress"] });
+
+      toast.success("Activity completed! 🎉");
+      navigate("/home");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to submit feedback");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col px-6 pt-12 pb-8">
@@ -50,10 +156,11 @@ const Feedback = () => {
       </motion.div>
 
       <button
-        onClick={() => navigate("/home")}
-        className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-2xl text-lg transition-opacity hover:opacity-90"
+        onClick={handleSubmit}
+        disabled={!selected || submitting}
+        className="w-full bg-primary text-primary-foreground font-bold py-4 rounded-2xl text-lg transition-opacity hover:opacity-90 disabled:opacity-50"
       >
-        Submit Feedback
+        {submitting ? "Submitting..." : "Submit Feedback"}
       </button>
     </div>
   );

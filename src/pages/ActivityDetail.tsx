@@ -2,13 +2,20 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Volume2, ChevronRight, CheckCircle } from "lucide-react";
-import { activities } from "@/data/mockData";
+import { useActivities } from "@/hooks/useActivities";
+import { useProfile } from "@/hooks/useProfile";
 
 const ActivityDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const activity = activities.find((a) => a.id === id);
+  const { data: profile } = useProfile();
+  const { data: activities } = useActivities(profile?.childId ?? null);
+  const activity = activities?.find((a) => a.id === id);
   const [currentStep, setCurrentStep] = useState(0);
+
+  if (!activities) {
+    return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading...</div>;
+  }
 
   if (!activity) {
     return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Activity not found</div>;
@@ -19,7 +26,6 @@ const ActivityDetail = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
       <div className="flex items-center gap-3 px-5 pt-10 pb-4">
         <button onClick={() => navigate(-1)} className="p-2 -ml-2 rounded-xl hover:bg-muted transition-colors">
           <ArrowLeft className="w-6 h-6 text-foreground" />
@@ -30,7 +36,6 @@ const ActivityDetail = () => {
         </div>
       </div>
 
-      {/* Step indicator */}
       <div className="flex gap-1.5 px-5 mb-6">
         {activity.steps.map((_, i) => (
           <div
@@ -42,7 +47,6 @@ const ActivityDetail = () => {
         ))}
       </div>
 
-      {/* Step card */}
       <div className="flex-1 px-5">
         <AnimatePresence mode="wait">
           <motion.div
@@ -72,7 +76,6 @@ const ActivityDetail = () => {
         </AnimatePresence>
       </div>
 
-      {/* Bottom buttons */}
       <div className="p-5 space-y-3">
         {isLast ? (
           <button
