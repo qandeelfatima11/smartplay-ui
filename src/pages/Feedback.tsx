@@ -26,27 +26,29 @@ const Feedback = () => {
     setSubmitting(true);
 
     try {
-      // Create or get daily plan for today
       const today = new Date().toISOString().split("T")[0];
 
-      // Check if plan already exists
+      // Step 1: Check if plan already exists for this activity+child+date
       const { data: existingPlan } = await supabase
         .from("daily_plans")
         .select("id")
         .eq("child_id", profile.childId)
         .eq("activity_id", activityId)
         .eq("plan_date", today)
-        .single();
+        .maybeSingle();
 
       let planId: string;
 
       if (existingPlan) {
         planId = existingPlan.id;
-        await supabase
+        // Mark as completed
+        const { error: updateErr } = await supabase
           .from("daily_plans")
           .update({ completed: true, completed_at: new Date().toISOString() })
           .eq("id", planId);
+        if (updateErr) throw updateErr;
       } else {
+        // Create new plan marked as completed
         const { data: newPlan, error: planError } = await supabase
           .from("daily_plans")
           .insert({
@@ -63,16 +65,31 @@ const Feedback = () => {
         planId = newPlan.id;
       }
 
-      // Insert feedback
-      const { error: fbError } = await supabase.from("feedback").insert({
-        daily_plan_id: planId,
-        rating: selected,
-        notes: note || null,
-      });
+      // Step 2: Check if feedback already exists for this plan
+      const { data: existingFeedback } = await supabase
+        .from("feedback")
+        .select("id")
+        .eq("daily_plan_id", planId)
+        .maybeSingle();
 
-      if (fbError) throw fbError;
+      if (existingFeedback) {
+        // Update existing feedback
+        const { error: fbError } = await supabase
+          .from("feedback")
+          .update({ rating: selected, notes: note || null })
+          .eq("id", existingFeedback.id);
+        if (fbError) throw fbError;
+      } else {
+        // Insert new feedback
+        const { error: fbError } = await supabase.from("feedback").insert({
+          daily_plan_id: planId,
+          rating: selected,
+          notes: note || null,
+        });
+        if (fbError) throw fbError;
+      }
 
-      // Update progress tracking
+      // Step 3: Update progress tracking
       const { data: activity } = await supabase
         .from("activities")
         .select("category")
@@ -80,39 +97,49 @@ const Feedback = () => {
         .single();
 
       if (activity) {
+        const ratingVal = selected === "yes" ? 5 : selected === "somewhat" ? 3 : 1;
+
         const { data: existing } = await supabase
           .from("progress_tracking")
           .select("*")
           .eq("child_id", profile.childId)
           .eq("category", activity.category)
-          .single();
+          .maybeSingle();
 
         if (existing) {
           const newCount = existing.completed_count + 1;
-          const ratingVal = selected === "yes" ? 5 : selected === "somewhat" ? 3 : 1;
-          const newAvg = ((existing.average_rating * existing.completed_count) + ratingVal) / newCount;
-          await supabase
+          const newAvg =
+            (existing.average_rating * existing.completed_count + ratingVal) /
+            newCount;
+          const { error: progErr } = await supabase
             .from("progress_tracking")
             .update({ completed_count: newCount, average_rating: newAvg })
             .eq("id", existing.id);
+          if (progErr) throw progErr;
         } else {
-          const ratingVal = selected === "yes" ? 5 : selected === "somewhat" ? 3 : 1;
-          await supabase.from("progress_tracking").insert({
-            child_id: profile.childId,
-            category: activity.category,
-            completed_count: 1,
-            average_rating: ratingVal,
-          });
+          const { error: progErr } = await supabase
+            .from("progress_tracking")
+            .insert({
+              child_id: profile.childId,
+              category: activity.category,
+              completed_count: 1,
+              average_rating: ratingVal,
+            });
+          if (progErr) throw progErr;
         }
       }
 
-      // Invalidate queries
-      queryClient.invalidateQueries({ queryKey: ["activities"] });
-      queryClient.invalidateQueries({ queryKey: ["progress"] });
+      // Invalidate all relevant queries so UI updates
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["activities"] }),
+        queryClient.invalidateQueries({ queryKey: ["progress"] }),
+        queryClient.invalidateQueries({ queryKey: ["profile"] }),
+      ]);
 
       toast.success("Activity completed! 🎉");
       navigate("/home");
     } catch (err: any) {
+      console.error("Feedback submit error:", err);
       toast.error(err.message || "Failed to submit feedback");
     } finally {
       setSubmitting(false);
